@@ -5,51 +5,56 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>尾牙主桌與貴賓排位系統</title>
   <link rel="stylesheet" href="style.css">
-  <!-- SheetJS 用於 Excel 匯入與匯出 -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
+  <!-- 上排精簡導覽列 -->
   <header class="app-header">
     <h1>尾牙主桌與貴賓排位系統</h1>
     <div class="toolbar">
-      <label class="btn btn-file">
-        匯入 Excel <input type="file" id="import-excel" accept=".xlsx, .xls">
-      </label>
-      <button id="add-guest-btn" class="btn">新增貴賓</button>
-      <button id="add-table-btn" class="btn btn-primary">新增桌子</button>
-      <button id="export-excel-btn" class="btn">匯出 Excel</button>
-      <button id="export-project-btn" class="btn">匯出專案 (JSON)</button>
-      <label class="btn btn-file">
+      <label class="btn btn-project">
         匯入專案 <input type="file" id="import-project" accept=".json">
       </label>
+      <button id="export-project-btn" class="btn btn-project">匯出專案 (JSON)</button>
       <button id="reset-btn" class="btn btn-danger">重置系統</button>
     </div>
   </header>
 
   <div class="main-container">
-    <!-- 左側邊欄：貴賓清單與篩選 -->
+    <!-- 左側邊欄 -->
     <aside class="sidebar">
       <div class="sidebar-header">
         <h3>待排入貴賓清單</h3>
-        <div class="view-toggle">
+        <div class="sidebar-actions">
+          <button id="open-table-modal-btn" class="btn btn-sm">查看貴賓資料</button>
+          <button id="add-guest-btn" class="btn btn-sm btn-success">新增貴賓</button>
+        </div>
+        <div class="sidebar-controls">
           <label class="switch-label">
             顯示頭銜
             <input type="checkbox" id="toggle-titles" checked>
             <span class="slider"></span>
           </label>
+          <button id="open-color-picker-btn" class="btn btn-xs">單位顏色設定</button>
+          <label class="btn btn-xs btn-file">
+            匯入 Excel <input type="file" id="import-excel" accept=".xlsx, .xls">
+          </label>
         </div>
       </div>
-      <div id="guest-list" class="guest-list">
-        <!-- 動態渲染貴賓卡片 -->
-      </div>
+      
+      <!-- 貴賓清單 -->
+      <div id="guest-list" class="guest-list"></div>
     </aside>
 
-    <!-- 右側：桌圖視圖區域 -->
+    <!-- 右側畫布區域 -->
     <main class="canvas-viewport" id="viewport">
-      <div class="canvas" id="canvas">
-        <!-- 動態渲染桌子 -->
+      <div class="canvas-top-bar">
+        <button id="add-table-btn" class="btn btn-primary">+ 新增桌子</button>
       </div>
-      <!-- 右下角縮放控制面板 -->
+
+      <div class="canvas" id="canvas"></div>
+
+      <!-- 右下角縮放面板 -->
       <div class="zoom-controls">
         <button id="zoom-in" class="zoom-btn">+</button>
         <button id="zoom-reset" class="zoom-btn">100%</button>
@@ -58,7 +63,7 @@
     </main>
   </div>
 
-  <!-- 詳細資料 / 新增貴賓對話框 -->
+  <!-- 對話框 1：查看 / 編輯單一貴賓資料 -->
   <dialog id="details-dialog" class="dialog">
     <form id="details-form" method="dialog">
       <h3 id="dialog-title">貴賓詳細資料</h3>
@@ -84,13 +89,50 @@
       </div>
       <div class="form-group">
         <label>其他備註：</label>
-        <textarea id="dialog-notes" rows="3" placeholder="例如：抵達時間、特別提醒..."></textarea>
+        <textarea id="dialog-notes" rows="3"></textarea>
       </div>
       <div class="dialog-actions">
         <button type="button" id="dialog-save-btn" class="btn btn-primary">儲存</button>
         <button type="button" id="dialog-close-btn" class="btn">關閉</button>
       </div>
     </form>
+  </dialog>
+
+  <!-- 對話框 2：查看貴賓資料大表格 -->
+  <dialog id="table-modal" class="dialog dialog-large">
+    <div class="dialog-header">
+      <h3>貴賓總總資料表</h3>
+      <button class="close-x" id="table-modal-close">×</button>
+    </div>
+    <div class="table-wrapper">
+      <table id="guest-data-table">
+        <thead>
+          <tr>
+            <th>桌次</th>
+            <th>單位</th>
+            <th>頭銜</th>
+            <th>姓名</th>
+            <th>飲食習慣</th>
+            <th>聯絡方式</th>
+            <th>備註</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="guest-table-body"></tbody>
+      </table>
+    </div>
+    <div class="dialog-footer">
+      <button id="export-excel-btn" class="btn btn-success">匯出 Excel</button>
+    </div>
+  </dialog>
+
+  <!-- 對話框 3：單位顏色設定 -->
+  <dialog id="color-modal" class="dialog">
+    <h3>單位色彩自訂</h3>
+    <div id="color-settings-list" class="color-settings-list"></div>
+    <div class="dialog-actions">
+      <button type="button" id="color-modal-close" class="btn">完成</button>
+    </div>
   </dialog>
 
   <script src="app.js"></script>
