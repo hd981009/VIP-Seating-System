@@ -32,7 +32,7 @@ body {
 }
 
 .btn {
-  padding: 6px 12px;
+  padding: 6px 14px;
   border: none;
   border-radius: 6px;
   background: #64748b;
@@ -44,6 +44,7 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  white-space: nowrap;
 }
 
 .btn:hover { opacity: 0.9; }
@@ -51,20 +52,33 @@ body {
 .btn-primary { background: #3b82f6; }
 .btn-success { background: #10b981; }
 .btn-danger { background: #ef4444; }
-.btn-sm { padding: 4px 8px; font-size: 0.8rem; }
+.btn-sm { padding: 4px 10px; font-size: 0.8rem; }
 .btn-xs { padding: 2px 6px; font-size: 0.75rem; background: #94a3b8; }
 .btn-full { width: 100%; margin-top: 4px; }
 
-/* 隱藏原生 File Input 的外觀 */
-.btn-file input[type="file"],
-.btn-project input[type="file"] {
-  display: none;
-}
-.btn-file, label.btn-project {
+/* 完美強行隱藏原生的檔案輸入「選擇檔案 / 未選擇任何檔案」文字 */
+.custom-file-btn {
+  position: relative;
+  overflow: hidden;
+  display: inline-block;
   cursor: pointer;
-  display: inline-flex;
-  align-items: center;
   margin: 0;
+}
+
+.custom-file-btn input[type="file"] {
+  position: absolute;
+  top: 0;
+  right: 0;
+  min-width: 100%;
+  min-height: 100%;
+  font-size: 100px;
+  text-align: right;
+  filter: alpha(opacity=0);
+  opacity: 0;
+  outline: none;
+  background: white;
+  cursor: pointer;
+  display: block;
 }
 
 /* 主要容器 */
@@ -143,13 +157,9 @@ body {
   transform: translateY(-1px);
 }
 
-.guest-card.selected {
-  outline: 3px solid #3b82f6 !important;
-}
-
 /* 飲食需求外框 */
 .guest-card.has-diet-vegetarian, .seat.has-diet-vegetarian {
-  border: 2px solid #10b981 !important; /* 素食：綠框 */
+  border: 2px solid #10b981 !important; /* 吃素：綠框 */
 }
 
 .guest-card.has-diet-special, .seat.has-diet-special {
@@ -187,7 +197,6 @@ body {
   color: #1e293b;
 }
 
-/* 名字三字以下不換行 */
 .name-short {
   white-space: nowrap;
 }
@@ -254,7 +263,7 @@ body {
 .canvas {
   display: flex;
   flex-wrap: wrap;
-  gap: 80px; /* 拉大桌子間距 */
+  gap: 80px; /* 大幅增加桌子間距 */
   padding: 80px 60px;
   transform-origin: center center;
   transition: transform 0.1s ease-out;
@@ -267,13 +276,19 @@ body {
   flex-direction: column;
   align-items: center;
   position: relative;
-  margin: 20px; /* 額外增加外距 */
+  margin: 20px;
   cursor: grab;
+  user-select: none;
+}
+
+.table-container:active {
+  cursor: grabbing;
 }
 
 .table-container.drag-over .table-circle {
   border-color: #f59e0b;
-  box-shadow: 0 0 15px rgba(245, 158, 11, 0.5);
+  box-shadow: 0 0 15px rgba(245, 158, 11, 0.6);
+  background-color: #fffbeb;
 }
 
 .table-circle {
@@ -288,8 +303,7 @@ body {
   align-items: center;
   position: relative;
   box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-  user-select: none;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
 }
 
 .table-title-input {
@@ -301,6 +315,7 @@ body {
   font-size: 0.95rem;
   background: transparent;
   color: #0f172a;
+  cursor: text;
 }
 
 .table-count {
@@ -334,7 +349,7 @@ body {
 
 .export-single-btn {
   font-size: 0.65rem;
-  padding: 1px 4px;
+  padding: 1px 5px;
   margin-top: 4px;
   background: #e2e8f0;
   border: none;
@@ -401,17 +416,7 @@ body {
   border: 1px solid white;
 }
 
-/* 橘色閃爍提示動畫 */
-.seat.highlight-blink {
-  animation: blink-orange 0.8s infinite alternate;
-}
-
-@keyframes blink-orange {
-  from { outline: 4px solid #f97316; box-shadow: 0 0 12px #f97316; }
-  to { outline: 1px solid #f97316; box-shadow: none; }
-}
-
-/* 縮放開關 */
+/* 縮放面板 */
 .zoom-controls {
   position: absolute;
   bottom: 20px;
@@ -493,15 +498,15 @@ th {
   white-space: nowrap;
 }
 
-/* 調整「桌次」與「操作」欄位不換行 */
+/* 寬度拉寬且不自動換行 */
 th.col-table, td.col-table {
   white-space: nowrap;
-  min-width: 90px;
+  min-width: 100px;
 }
 
 th.col-action, td.col-action {
   white-space: nowrap;
-  min-width: 70px;
+  min-width: 80px;
   text-align: center;
 }
 
@@ -555,7 +560,7 @@ td input:focus { border-color: #3b82f6; background: #fff; }
   border: 1px solid #e2e8f0;
 }
 
-/* 開關控制項 (Switch) */
+/* Switch 按鈕 */
 .switch-label {
   display: flex;
   align-items: center;
