@@ -8,12 +8,13 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
-  <!-- 上排精簡導覽列 -->
+  <!-- 上排導覽列 -->
   <header class="app-header">
     <h1>尾牙主桌與貴賓排位系統</h1>
     <div class="toolbar">
-      <label class="btn btn-project">
-        匯入專案 <input type="file" id="import-project" accept=".json">
+      <label class="btn btn-project custom-file-btn">
+        匯入專案
+        <input type="file" id="import-project" accept=".json">
       </label>
       <button id="export-project-btn" class="btn btn-project">匯出專案 (JSON)</button>
       <button id="reset-btn" class="btn btn-danger">重置系統</button>
@@ -38,7 +39,7 @@
         </div>
       </div>
 
-      <!-- 貴賓清單 -->
+      <!-- 待排貴賓清單 -->
       <div id="guest-list" class="guest-list"></div>
     </aside>
 
@@ -99,8 +100,9 @@
     <div class="dialog-header">
       <h3>貴賓總資料表</h3>
       <div class="modal-header-actions">
-        <label class="btn btn-sm btn-file btn-success">
-          匯入 Excel <input type="file" id="import-excel" accept=".xlsx, .xls">
+        <label class="btn btn-sm btn-success custom-file-btn">
+          匯入 EXCEL
+          <input type="file" id="import-excel" accept=".xlsx, .xls">
         </label>
         <button id="modal-add-guest-btn" class="btn btn-sm btn-success">+ 新增貴賓</button>
         <button class="close-x" id="table-modal-close">×</button>
