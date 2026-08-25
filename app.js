@@ -1,4 +1,4 @@
-// 可選的 7 種淡色調
+// 可選 7 種淡色調
 const PALETTE = [
   { name: '淡黃', code: '#fef9c3' },
   { name: '淡藍', code: '#e0f2fe' },
@@ -15,11 +15,10 @@ let state = {
   tables: [],
   showTitles: true,
   zoomScale: 1.0,
-  selectedGuestId: null,
   deptColors: {}
 };
 
-// 初始化預設桌子
+// 初始化預設 3 張桌子
 function initDefaultTables() {
   state.tables = [
     { id: 't-1', name: '主桌 1', capacity: 10, seats: Array(10).fill(null) },
@@ -28,7 +27,7 @@ function initDefaultTables() {
   ];
 }
 
-// DOM 元件引用
+// DOM 元素引用
 const guestListEl = document.getElementById('guest-list');
 const canvasEl = document.getElementById('canvas');
 const detailsDialog = document.getElementById('details-dialog');
@@ -39,41 +38,47 @@ document.addEventListener('DOMContentLoaded', () => {
   initDefaultTables();
   render();
 
-  // 控制項事件綁定
-  document.getElementById('import-excel').addEventListener('change', handleExcelImport);
+  // 1. 綁定 Excel 匯入事件
+  const excelInput = document.getElementById('import-excel');
+  if (excelInput) {
+    excelInput.addEventListener('change', handleExcelImport);
+  }
+
+  // 2. 顯示頭銜開關
   document.getElementById('toggle-titles').addEventListener('change', (e) => {
     state.showTitles = e.target.checked;
     render();
   });
 
+  // 3. 按鈕動作綁定
   document.getElementById('add-table-btn').addEventListener('click', addTable);
   document.getElementById('modal-add-guest-btn').addEventListener('click', () => openDetailsModal());
   document.getElementById('reset-btn').addEventListener('click', resetSystem);
 
-  // 查看貴賓資料大表格
+  // 4. 查看貴賓資料大表格
   document.getElementById('open-table-modal-btn').addEventListener('click', openTableModal);
   document.getElementById('table-modal-close').addEventListener('click', () => tableModal.close());
   document.getElementById('export-excel-btn').addEventListener('click', exportExcel);
 
-  // 單位顏色設定
+  // 5. 顏色設定
   document.getElementById('open-color-picker-btn').addEventListener('click', openColorModal);
   document.getElementById('color-modal-close').addEventListener('click', () => colorModal.close());
 
-  // 專案 JSON 匯入/匯出
+  // 6. 專案 JSON 匯入/匯出
   document.getElementById('export-project-btn').addEventListener('click', exportProject);
   document.getElementById('import-project').addEventListener('change', importProject);
 
-  // 畫布縮放
+  // 7. 縮放控制
   document.getElementById('zoom-in').addEventListener('click', () => setZoom(state.zoomScale + 0.1));
   document.getElementById('zoom-out').addEventListener('click', () => setZoom(state.zoomScale - 0.1));
   document.getElementById('zoom-reset').addEventListener('click', () => setZoom(1.0));
 
-  // 單一貴賓儲存
+  // 8. 貴賓儲存/關閉
   document.getElementById('dialog-save-btn').addEventListener('click', saveGuestDetails);
   document.getElementById('dialog-close-btn').addEventListener('click', () => detailsDialog.close());
 });
 
-// 顏色分配邏輯
+// 取得單位顏色
 function getDeptColor(dept) {
   if (!dept) return '#ffffff';
   if (!state.deptColors[dept]) {
@@ -83,14 +88,14 @@ function getDeptColor(dept) {
   return state.deptColors[dept];
 }
 
-// 判斷飲食習慣類型
+// 飲食需求外框樣式
 function getDietClass(diet) {
   if (!diet || diet.trim() === '' || diet === '無') return '';
-  if (diet.includes('素')) return 'has-diet-vegetarian'; // 吃素：綠框
-  return 'has-diet-special'; // 其他飲食需求：橘框
+  if (diet.includes('素')) return 'has-diet-vegetarian';
+  return 'has-diet-special';
 }
 
-// 縮放設定
+// 設定畫布縮放
 function setZoom(scale) {
   state.zoomScale = Math.min(Math.max(0.5, scale), 1.5);
   canvasEl.style.transform = `scale(${state.zoomScale})`;
@@ -110,7 +115,7 @@ function addTable() {
   render();
 }
 
-// 加/減席位
+// 調整座位數
 function updateCapacity(tableId, delta) {
   const table = state.tables.find(t => t.id === tableId);
   if (!table) return;
@@ -138,7 +143,7 @@ function deleteTable(tableId) {
   const table = state.tables.find(t => t.id === tableId);
   if (!table) return;
 
-  if (confirm(`確定要刪除「${table.name}」嗎？桌上賓客將歸還至待排清單。`)) {
+  if (confirm(`確定要刪除「${table.name}」嗎？桌上貴賓將放回待排清單。`)) {
     table.seats.forEach(guestId => {
       if (guestId) {
         const g = state.guests.find(x => x.id === guestId);
@@ -150,9 +155,9 @@ function deleteTable(tableId) {
   }
 }
 
-// 交換兩桌位置與內容
+// 調換兩桌位置
 function swapTables(sourceTableId, targetTableId) {
-  if (sourceTableId === targetTableId) return;
+  if (!sourceTableId || !targetTableId || sourceTableId === targetTableId) return;
   const idx1 = state.tables.findIndex(t => t.id === sourceTableId);
   const idx2 = state.tables.findIndex(t => t.id === targetTableId);
 
@@ -164,13 +169,13 @@ function swapTables(sourceTableId, targetTableId) {
   }
 }
 
-// 渲染主入口
+// 主渲染函式
 function render() {
   renderGuestList();
   renderCanvas();
 }
 
-// 渲染左側貴賓清單
+// 渲染左側待排清單
 function renderGuestList() {
   guestListEl.innerHTML = '';
 
@@ -179,24 +184,19 @@ function renderGuestList() {
     const color = getDeptColor(guest.dept);
     const dietClass = getDietClass(guest.diet);
 
-    card.className = `guest-card 
-      ${state.selectedGuestId === guest.id ? 'selected' : ''} 
-      ${dietClass} 
-      ${!guest.attending ? 'absent' : ''}`;
+    card.className = `guest-card ${dietClass} ${!guest.attending ? 'absent' : ''}`;
     card.style.backgroundColor = color;
-    card.draggable = true; // 啟用拖拉
+    card.draggable = true;
 
-    // 拖拉貴賓
+    // 拖拉貴賓卡片
     card.addEventListener('dragstart', (e) => {
       e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'guest', guestId: guest.id }));
     });
 
-    // 左鍵點擊：查看與編輯資料
-    card.addEventListener('click', () => {
-      openDetailsModal(guest.id);
-    });
+    // 點擊左鍵：檢視與修改
+    card.addEventListener('click', () => openDetailsModal(guest.id));
 
-    // 右鍵刪除
+    // 右鍵：刪除貴賓
     card.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       if (confirm(`確定要刪除貴賓「${guest.name}」嗎？`)) {
@@ -204,7 +204,6 @@ function renderGuestList() {
       }
     });
 
-    // 取得分配桌名
     let assignedBadge = '';
     if (guest.assignedTable) {
       const table = state.tables.find(t => t.id === guest.assignedTable);
@@ -232,7 +231,6 @@ function renderGuestList() {
       </div>
     `;
 
-    // 出席狀態切換
     card.querySelectorAll('.attendance-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -252,9 +250,9 @@ function renderCanvas() {
   state.tables.forEach(table => {
     const tableContainer = document.createElement('div');
     tableContainer.className = 'table-container';
-    tableContainer.draggable = true;
+    tableContainer.draggable = true; // 允許桌子被拖拉
 
-    // 拖拉桌子事件
+    // 桌子拖拉與交換邏輯
     tableContainer.addEventListener('dragstart', (e) => {
       e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'table', tableId: table.id }));
     });
@@ -271,26 +269,27 @@ function renderCanvas() {
     tableContainer.addEventListener('drop', (e) => {
       e.preventDefault();
       tableContainer.classList.remove('drag-over');
-      const dataRaw = e.dataTransfer.getData('text/plain');
-      if (!dataRaw) return;
-      const data = JSON.parse(dataRaw);
+      const raw = e.dataTransfer.getData('text/plain');
+      if (!raw) return;
 
-      if (data.type === 'table') {
-        swapTables(data.tableId, table.id);
-      }
+      try {
+        const data = JSON.parse(raw);
+        if (data.type === 'table') {
+          swapTables(data.tableId, table.id);
+        }
+      } catch (err) { }
     });
 
-    // 圓形桌體
+    // 桌子圓心
     const circle = document.createElement('div');
     circle.className = 'table-circle';
 
-    // 右鍵刪除桌子
     circle.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       deleteTable(table.id);
     });
 
-    // 桌名編輯
+    // 桌名輸入框
     const titleInput = document.createElement('input');
     titleInput.className = 'table-title-input';
     titleInput.value = table.name;
@@ -304,7 +303,7 @@ function renderCanvas() {
     countDisplay.className = 'table-count';
     countDisplay.innerText = `${occupiedCount} / ${table.capacity}`;
 
-    // 桌內按鈕
+    // 控制按鈕
     const innerCtrls = document.createElement('div');
     innerCtrls.className = 'table-inner-ctrls';
 
@@ -331,7 +330,7 @@ function renderCanvas() {
     circle.appendChild(innerCtrls);
     circle.appendChild(exportBtn);
 
-    // 渲染席位
+    // 環形席位渲染
     const radius = 125;
     table.seats.forEach((guestId, seatIndex) => {
       const seat = document.createElement('div');
@@ -341,17 +340,17 @@ function renderCanvas() {
 
       seat.style.left = `${x}px`;
       seat.style.top = `${y}px`;
-
-      const guest = state.guests.find(g => g.id === guestId);
       seat.className = 'seat';
 
-      // 1號位標註主人標籤
+      // 1 號位顯示「主」字黃色標籤
       if (seatIndex === 0) {
         const hostBadge = document.createElement('div');
         hostBadge.className = 'host-badge';
         hostBadge.innerText = '主';
         seat.appendChild(hostBadge);
       }
+
+      const guest = state.guests.find(g => g.id === guestId);
 
       if (guest) {
         seat.classList.add('occupied');
@@ -361,23 +360,19 @@ function renderCanvas() {
         if (dietClass) seat.classList.add(dietClass);
         if (!guest.attending) seat.classList.add('absent');
 
-        if (state.selectedGuestId === guest.id) {
-          seat.classList.add('highlight-blink');
-        }
-
         const titleText = state.showTitles && guest.title ? `<span style="font-size:0.6rem; color:#64748b;">${guest.title}</span>` : '';
         const isShortName = guest.name && guest.name.length <= 3;
         const nameSpan = `<strong class="${isShortName ? 'name-short' : ''}">${guest.name}</strong>`;
 
         seat.innerHTML += `${titleText}${nameSpan}`;
-        seat.draggable = true; // 允許座位上的貴賓被拖拉
+        seat.draggable = true;
       } else {
         const numSpan = document.createElement('span');
         numSpan.innerText = `${seatIndex + 1}`;
         seat.appendChild(numSpan);
       }
 
-      // 座位拖拉事件處理
+      // 座位拖拉邏輯
       seat.addEventListener('dragstart', (e) => {
         if (guestId) {
           e.stopPropagation();
@@ -406,59 +401,58 @@ function renderCanvas() {
         e.stopPropagation();
         seat.classList.remove('drag-over');
 
-        const dataRaw = e.dataTransfer.getData('text/plain');
-        if (!dataRaw) return;
-        const data = JSON.parse(dataRaw);
+        const raw = e.dataTransfer.getData('text/plain');
+        if (!raw) return;
 
-        if (data.type === 'guest') {
-          // 從待排名單拖入席位
-          const draggedGuest = state.guests.find(g => g.id === data.guestId);
-          if (draggedGuest) {
-            // 清除舊位置
-            if (draggedGuest.assignedTable) {
-              const oldTable = state.tables.find(t => t.id === draggedGuest.assignedTable);
-              if (oldTable) {
-                const oldIdx = oldTable.seats.indexOf(draggedGuest.id);
-                if (oldIdx !== -1) oldTable.seats[oldIdx] = null;
+        try {
+          const data = JSON.parse(raw);
+
+          if (data.type === 'guest') {
+            // 從待排名單放置席位
+            const draggedGuest = state.guests.find(g => g.id === data.guestId);
+            if (draggedGuest) {
+              if (draggedGuest.assignedTable) {
+                const oldTable = state.tables.find(t => t.id === draggedGuest.assignedTable);
+                if (oldTable) {
+                  const oldIdx = oldTable.seats.indexOf(draggedGuest.id);
+                  if (oldIdx !== -1) oldTable.seats[oldIdx] = null;
+                }
               }
-            }
-            // 若目標席位有人，目標賓客返回待排
-            if (table.seats[seatIndex]) {
-              const prevGuest = state.guests.find(g => g.id === table.seats[seatIndex]);
-              if (prevGuest) prevGuest.assignedTable = null;
-            }
+              if (table.seats[seatIndex]) {
+                const prevGuest = state.guests.find(g => g.id === table.seats[seatIndex]);
+                if (prevGuest) prevGuest.assignedTable = null;
+              }
 
-            table.seats[seatIndex] = draggedGuest.id;
-            draggedGuest.assignedTable = table.id;
-            render();
+              table.seats[seatIndex] = draggedGuest.id;
+              draggedGuest.assignedTable = table.id;
+              render();
+            }
+          } else if (data.type === 'seat') {
+            // 座位對調
+            const srcTable = state.tables.find(t => t.id === data.sourceTableId);
+            if (srcTable) {
+              const targetGuestId = table.seats[seatIndex];
+              const srcGuestId = data.guestId;
+
+              srcTable.seats[data.sourceSeatIndex] = targetGuestId;
+              table.seats[seatIndex] = srcGuestId;
+
+              if (srcGuestId) {
+                const sg = state.guests.find(g => g.id === srcGuestId);
+                if (sg) sg.assignedTable = table.id;
+              }
+              if (targetGuestId) {
+                const tg = state.guests.find(g => g.id === targetGuestId);
+                if (tg) tg.assignedTable = srcTable.id;
+              }
+
+              render();
+            }
           }
-        } else if (data.type === 'seat') {
-          // 席位對調
-          const srcTable = state.tables.find(t => t.id === data.sourceTableId);
-          if (srcTable) {
-            const targetGuestId = table.seats[seatIndex];
-            const srcGuestId = data.guestId;
-
-            // 交換
-            srcTable.seats[data.sourceSeatIndex] = targetGuestId;
-            table.seats[seatIndex] = srcGuestId;
-
-            // 更新所屬桌次紀錄
-            if (srcGuestId) {
-              const sg = state.guests.find(g => g.id === srcGuestId);
-              if (sg) sg.assignedTable = table.id;
-            }
-            if (targetGuestId) {
-              const tg = state.guests.find(g => g.id === targetGuestId);
-              if (tg) tg.assignedTable = srcTable.id;
-            }
-
-            render();
-          }
-        }
+        } catch (err) { }
       });
 
-      // 左鍵點擊席位
+      // 點擊檢視/修改
       seat.addEventListener('click', (e) => {
         e.stopPropagation();
         if (guestId) {
@@ -466,12 +460,12 @@ function renderCanvas() {
         }
       });
 
-      // 右鍵移除席位上的貴賓
+      // 右鍵移除席位貴賓
       seat.addEventListener('contextmenu', (e) => {
         e.preventDefault();
         e.stopPropagation();
         if (guestId) {
-          if (confirm('確定要將此位貴賓移出座位嗎？')) {
+          if (confirm('確定要將此貴賓移出座位嗎？')) {
             const g = state.guests.find(x => x.id === guestId);
             if (g) g.assignedTable = null;
             table.seats[seatIndex] = null;
@@ -498,12 +492,11 @@ function deleteGuest(guestId) {
   });
 
   state.guests = state.guests.filter(g => g.id !== guestId);
-  if (state.selectedGuestId === guestId) state.selectedGuestId = null;
   render();
   renderTableModalRows();
 }
 
-// 開啟查看貴賓資料大表格
+// 開啟貴賓大表格
 function openTableModal() {
   renderTableModalRows();
   tableModal.showModal();
@@ -532,7 +525,6 @@ function renderTableModalRows() {
       <td class="col-action"><button class="btn btn-xs btn-danger">刪除</button></td>
     `;
 
-    // 即時編輯欄位同步
     tr.querySelectorAll('input').forEach(input => {
       input.addEventListener('change', (e) => {
         const field = e.target.dataset.field;
@@ -551,7 +543,7 @@ function renderTableModalRows() {
   });
 }
 
-// 開啟單位顏色對話框
+// 顏色 Modal
 function openColorModal() {
   const list = document.getElementById('color-settings-list');
   list.innerHTML = '';
@@ -587,7 +579,7 @@ function openColorModal() {
   colorModal.showModal();
 }
 
-// 開啟單一貴賓 Modal
+// 單一貴賓彈窗
 function openDetailsModal(guestId = null) {
   state.editingGuestId = guestId;
   if (guestId) {
@@ -638,54 +630,58 @@ function saveGuestDetails() {
 
   detailsDialog.close();
   render();
-  renderTableModalRows(); // 同步更新大表格
+  renderTableModalRows();
 }
 
-// 匯入 Excel（過濾已存在姓名）
+// Excel 匯入解析（過濾相同姓名）
 function handleExcelImport(e) {
   const file = e.target.files[0];
   if (!file) return;
 
   const reader = new FileReader();
   reader.onload = (evt) => {
-    const wb = XLSX.read(evt.target.result, { type: 'binary' });
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const data = XLSX.utils.sheet_to_json(ws);
+    try {
+      const wb = XLSX.read(evt.target.result, { type: 'binary' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const data = XLSX.utils.sheet_to_json(ws);
 
-    // 取得現有貴賓姓名清單
-    const existingNames = new Set(state.guests.map(g => g.name.trim()));
+      // 取得已有貴賓名單（比對姓名）
+      const existingNames = new Set(state.guests.map(g => g.name.trim()));
 
-    let importedCount = 0;
-    const imported = [];
+      let importedCount = 0;
+      const newGuests = [];
 
-    data.forEach((row, idx) => {
-      const name = (row['姓名'] || '').toString().trim();
-      if (name && !existingNames.has(name)) {
-        imported.push({
-          id: `g-${Date.now()}-${idx}`,
-          dept: row['單位'] || '未指定單位',
-          title: row['頭銜'] || '',
-          name: name,
-          diet: row['飲食習慣'] || '無',
-          contact: row['聯絡方式'] || '',
-          notes: row['備註'] || '',
-          attending: true,
-          assignedTable: null
-        });
-        existingNames.add(name);
-        importedCount++;
+      data.forEach((row, idx) => {
+        const name = (row['姓名'] || '').toString().trim();
+        if (name && !existingNames.has(name)) {
+          newGuests.push({
+            id: `g-${Date.now()}-${idx}`,
+            dept: row['單位'] || '未指定單位',
+            title: row['頭銜'] || '',
+            name: name,
+            diet: row['飲食習慣'] || '無',
+            contact: row['聯絡方式'] || '',
+            notes: row['備註'] || '',
+            attending: true,
+            assignedTable: null
+          });
+          existingNames.add(name);
+          importedCount++;
+        }
+      });
+
+      if (newGuests.length > 0) {
+        state.guests.push(...newGuests);
+        render();
+        renderTableModalRows();
+        alert(`成功匯入 ${importedCount} 筆新貴賓資料！`);
+      } else {
+        alert('未匯入任何新資料（匯入清單中的姓名皆已存在）。');
       }
-    });
-
-    if (imported.length > 0) {
-      state.guests.push(...imported);
-      render();
-      renderTableModalRows();
-      alert(`成功匯入 ${importedCount} 筆新貴賓資料！`);
-    } else {
-      alert('未匯入任何新資料（所有貴賓已存在於清單中）。');
+    } catch (err) {
+      alert('解析 Excel 檔案失敗，請確認檔案格式是否正確！');
     }
-    e.target.value = ''; // 重置 input
+    e.target.value = ''; // 清空檔案選擇器，以便重複選擇同一個檔案
   };
   reader.readAsBinaryString(file);
 }
@@ -741,7 +737,7 @@ function exportSingleTable(tableId) {
   XLSX.writeFile(wb, `${table.name}_名單.xlsx`);
 }
 
-// 專案 JSON 匯出/匯入/重置
+// 專案匯出/匯入/重置
 function exportProject() {
   const jsonStr = JSON.stringify(state, null, 2);
   const blob = new Blob([jsonStr], { type: "application/json" });
@@ -772,7 +768,6 @@ function importProject(e) {
 function resetSystem() {
   if (confirm("確定要重置系統嗎？所有資料將清空！")) {
     state.guests = [];
-    state.selectedGuestId = null;
     state.deptColors = {};
     initDefaultTables();
     render();
