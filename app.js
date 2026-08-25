@@ -15,8 +15,8 @@ let state = {
   tables: [],
   showTitles: true,
   zoomScale: 1.0,
-  selectedGuestId: null, // 當前點擊選取的貴賓
-  deptColors: {} // 單位對應顏色 code
+  selectedGuestId: null,
+  deptColors: {}
 };
 
 // 初始化預設桌子
@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initDefaultTables();
   render();
 
-  // 頂部與邊欄控制項
+  // 控制項事件綁定
   document.getElementById('import-excel').addEventListener('change', handleExcelImport);
   document.getElementById('toggle-titles').addEventListener('change', (e) => {
     state.showTitles = e.target.checked;
@@ -47,7 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.getElementById('add-table-btn').addEventListener('click', addTable);
-  document.getElementById('add-guest-btn').addEventListener('click', () => openDetailsModal());
+  document.getElementById('modal-add-guest-btn').addEventListener('click', () => openDetailsModal());
   document.getElementById('reset-btn').addEventListener('click', resetSystem);
 
   // 查看貴賓資料大表格
@@ -77,11 +77,17 @@ document.addEventListener('DOMContentLoaded', () => {
 function getDeptColor(dept) {
   if (!dept) return '#ffffff';
   if (!state.deptColors[dept]) {
-    // 依序循環指派預設顏色
     const usedCount = Object.keys(state.deptColors).length;
     state.deptColors[dept] = PALETTE[usedCount % PALETTE.length].code;
   }
   return state.deptColors[dept];
+}
+
+// 判斷飲食習慣類型
+function getDietClass(diet) {
+  if (!diet || diet.trim() === '' || diet === '無') return '';
+  if (diet.includes('素')) return 'has-diet-vegetarian'; // 吃素：綠框
+  return 'has-diet-special'; // 其他飲食需求：橘框
 }
 
 // 縮放設定
@@ -144,7 +150,21 @@ function deleteTable(tableId) {
   }
 }
 
-// 主要渲染
+// 交換兩桌位置與內容
+function swapTables(sourceTableId, targetTableId) {
+  if (sourceTableId === targetTableId) return;
+  const idx1 = state.tables.findIndex(t => t.id === sourceTableId);
+  const idx2 = state.tables.findIndex(t => t.id === targetTableId);
+
+  if (idx1 !== -1 && idx2 !== -1) {
+    const temp = state.tables[idx1];
+    state.tables[idx1] = state.tables[idx2];
+    state.tables[idx2] = temp;
+    render();
+  }
+}
+
+// 渲染主入口
 function render() {
   renderGuestList();
   renderCanvas();
@@ -157,21 +177,23 @@ function renderGuestList() {
   state.guests.forEach(guest => {
     const card = document.createElement('div');
     const color = getDeptColor(guest.dept);
+    const dietClass = getDietClass(guest.diet);
 
     card.className = `guest-card 
       ${state.selectedGuestId === guest.id ? 'selected' : ''} 
-      ${guest.diet && guest.diet !== '無' ? 'has-diet' : ''} 
+      ${dietClass} 
       ${!guest.attending ? 'absent' : ''}`;
     card.style.backgroundColor = color;
+    card.draggable = true; // 啟用拖拉
 
-    // 左鍵點擊選擇
+    // 拖拉貴賓
+    card.addEventListener('dragstart', (e) => {
+      e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'guest', guestId: guest.id }));
+    });
+
+    // 左鍵點擊：查看與編輯資料
     card.addEventListener('click', () => {
-      if (state.selectedGuestId === guest.id) {
-        state.selectedGuestId = null; // 取消選擇
-      } else {
-        state.selectedGuestId = guest.id;
-      }
-      render();
+      openDetailsModal(guest.id);
     });
 
     // 右鍵刪除
@@ -192,12 +214,14 @@ function renderGuestList() {
     }
 
     const titleHtml = state.showTitles && guest.title ? `<span class="guest-title-text">(${guest.title})</span>` : '';
+    const isShortName = guest.name && guest.name.length <= 3;
+    const nameClass = isShortName ? 'guest-name name-short' : 'guest-name';
 
     card.innerHTML = `
       <div class="guest-main-info">
         <span class="guest-dept">${guest.dept}</span>
         <div class="guest-name-row">
-          <span class="guest-name">${guest.name}</span>
+          <span class="${nameClass}">${guest.name}</span>
           ${titleHtml}
           ${assignedBadge}
         </div>
@@ -228,18 +252,45 @@ function renderCanvas() {
   state.tables.forEach(table => {
     const tableContainer = document.createElement('div');
     tableContainer.className = 'table-container';
+    tableContainer.draggable = true;
+
+    // 拖拉桌子事件
+    tableContainer.addEventListener('dragstart', (e) => {
+      e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'table', tableId: table.id }));
+    });
+
+    tableContainer.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      tableContainer.classList.add('drag-over');
+    });
+
+    tableContainer.addEventListener('dragleave', () => {
+      tableContainer.classList.remove('drag-over');
+    });
+
+    tableContainer.addEventListener('drop', (e) => {
+      e.preventDefault();
+      tableContainer.classList.remove('drag-over');
+      const dataRaw = e.dataTransfer.getData('text/plain');
+      if (!dataRaw) return;
+      const data = JSON.parse(dataRaw);
+
+      if (data.type === 'table') {
+        swapTables(data.tableId, table.id);
+      }
+    });
 
     // 圓形桌體
     const circle = document.createElement('div');
     circle.className = 'table-circle';
 
-    // 桌子右鍵：刪除提示
+    // 右鍵刪除桌子
     circle.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       deleteTable(table.id);
     });
 
-    // 桌名可直接編輯
+    // 桌名編輯
     const titleInput = document.createElement('input');
     titleInput.className = 'table-title-input';
     titleInput.value = table.name;
@@ -253,7 +304,7 @@ function renderCanvas() {
     countDisplay.className = 'table-count';
     countDisplay.innerText = `${occupiedCount} / ${table.capacity}`;
 
-    // 桌內加減按鈕
+    // 桌內按鈕
     const innerCtrls = document.createElement('div');
     innerCtrls.className = 'table-inner-ctrls';
 
@@ -281,70 +332,141 @@ function renderCanvas() {
     circle.appendChild(exportBtn);
 
     // 渲染席位
-    const radius = 120;
+    const radius = 125;
     table.seats.forEach((guestId, seatIndex) => {
       const seat = document.createElement('div');
       const angle = (seatIndex / table.capacity) * (2 * Math.PI) - (Math.PI / 2);
-      const x = 90 + radius * Math.cos(angle);
-      const y = 90 + radius * Math.sin(angle);
+      const x = 95 + radius * Math.cos(angle);
+      const y = 95 + radius * Math.sin(angle);
 
       seat.style.left = `${x}px`;
       seat.style.top = `${y}px`;
 
       const guest = state.guests.find(g => g.id === guestId);
-
       seat.className = 'seat';
+
+      // 1號位標註主人標籤
+      if (seatIndex === 0) {
+        const hostBadge = document.createElement('div');
+        hostBadge.className = 'host-badge';
+        hostBadge.innerText = '主';
+        seat.appendChild(hostBadge);
+      }
+
       if (guest) {
         seat.classList.add('occupied');
         seat.style.backgroundColor = getDeptColor(guest.dept);
 
-        if (guest.diet && guest.diet !== '無') seat.classList.add('has-diet');
+        const dietClass = getDietClass(guest.diet);
+        if (dietClass) seat.classList.add(dietClass);
         if (!guest.attending) seat.classList.add('absent');
 
-        // 閃爍提示：如果當前選中的人正好在這個位置
         if (state.selectedGuestId === guest.id) {
           seat.classList.add('highlight-blink');
         }
 
         const titleText = state.showTitles && guest.title ? `<span style="font-size:0.6rem; color:#64748b;">${guest.title}</span>` : '';
-        seat.innerHTML = `${titleText}<strong>${guest.name}</strong>`;
+        const isShortName = guest.name && guest.name.length <= 3;
+        const nameSpan = `<strong class="${isShortName ? 'name-short' : ''}">${guest.name}</strong>`;
+
+        seat.innerHTML += `${titleText}${nameSpan}`;
+        seat.draggable = true; // 允許座位上的貴賓被拖拉
       } else {
-        seat.innerText = `${seatIndex + 1}`;
+        const numSpan = document.createElement('span');
+        numSpan.innerText = `${seatIndex + 1}`;
+        seat.appendChild(numSpan);
       }
 
-      // 左鍵點擊席位邏輯
-      seat.addEventListener('click', () => {
-        if (state.selectedGuestId) {
-          // 如果左側有選中的賓客 ➔ 安排入座
-          const selectedGuest = state.guests.find(g => g.id === state.selectedGuestId);
-          if (selectedGuest) {
-            // 清除原位置
-            if (selectedGuest.assignedTable) {
-              const oldTable = state.tables.find(t => t.id === selectedGuest.assignedTable);
+      // 座位拖拉事件處理
+      seat.addEventListener('dragstart', (e) => {
+        if (guestId) {
+          e.stopPropagation();
+          e.dataTransfer.setData('text/plain', JSON.stringify({
+            type: 'seat',
+            sourceTableId: table.id,
+            sourceSeatIndex: seatIndex,
+            guestId: guestId
+          }));
+        }
+      });
+
+      seat.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        seat.classList.add('drag-over');
+      });
+
+      seat.addEventListener('dragleave', (e) => {
+        e.stopPropagation();
+        seat.classList.remove('drag-over');
+      });
+
+      seat.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        seat.classList.remove('drag-over');
+
+        const dataRaw = e.dataTransfer.getData('text/plain');
+        if (!dataRaw) return;
+        const data = JSON.parse(dataRaw);
+
+        if (data.type === 'guest') {
+          // 從待排名單拖入席位
+          const draggedGuest = state.guests.find(g => g.id === data.guestId);
+          if (draggedGuest) {
+            // 清除舊位置
+            if (draggedGuest.assignedTable) {
+              const oldTable = state.tables.find(t => t.id === draggedGuest.assignedTable);
               if (oldTable) {
-                const oldSeatIndex = oldTable.seats.indexOf(selectedGuest.id);
-                if (oldSeatIndex !== -1) oldTable.seats[oldSeatIndex] = null;
+                const oldIdx = oldTable.seats.indexOf(draggedGuest.id);
+                if (oldIdx !== -1) oldTable.seats[oldIdx] = null;
               }
             }
-
-            // 如果該位置原本有人，原來的賓客退回待排
+            // 若目標席位有人，目標賓客返回待排
             if (table.seats[seatIndex]) {
               const prevGuest = state.guests.find(g => g.id === table.seats[seatIndex]);
               if (prevGuest) prevGuest.assignedTable = null;
             }
 
-            table.seats[seatIndex] = selectedGuest.id;
-            selectedGuest.assignedTable = table.id;
-            state.selectedGuestId = null; // 排完清除選取
+            table.seats[seatIndex] = draggedGuest.id;
+            draggedGuest.assignedTable = table.id;
             render();
           }
-        } else if (guestId) {
-          // 沒有選中左側，點擊已入座席位 ➔ 查看資料
+        } else if (data.type === 'seat') {
+          // 席位對調
+          const srcTable = state.tables.find(t => t.id === data.sourceTableId);
+          if (srcTable) {
+            const targetGuestId = table.seats[seatIndex];
+            const srcGuestId = data.guestId;
+
+            // 交換
+            srcTable.seats[data.sourceSeatIndex] = targetGuestId;
+            table.seats[seatIndex] = srcGuestId;
+
+            // 更新所屬桌次紀錄
+            if (srcGuestId) {
+              const sg = state.guests.find(g => g.id === srcGuestId);
+              if (sg) sg.assignedTable = table.id;
+            }
+            if (targetGuestId) {
+              const tg = state.guests.find(g => g.id === targetGuestId);
+              if (tg) tg.assignedTable = srcTable.id;
+            }
+
+            render();
+          }
+        }
+      });
+
+      // 左鍵點擊席位
+      seat.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (guestId) {
           openDetailsModal(guestId);
         }
       });
 
-      // 席位右鍵 ➔ 刪除/移出位子
+      // 右鍵移除席位上的貴賓
       seat.addEventListener('contextmenu', (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -356,7 +478,6 @@ function renderCanvas() {
             render();
           }
         } else {
-          // 點擊空席位右鍵可減少該桌位數
           updateCapacity(table.id, -1);
         }
       });
@@ -371,7 +492,6 @@ function renderCanvas() {
 
 // 刪除貴賓
 function deleteGuest(guestId) {
-  // 從桌圖中清除
   state.tables.forEach(table => {
     const idx = table.seats.indexOf(guestId);
     if (idx !== -1) table.seats[idx] = null;
@@ -380,7 +500,7 @@ function deleteGuest(guestId) {
   state.guests = state.guests.filter(g => g.id !== guestId);
   if (state.selectedGuestId === guestId) state.selectedGuestId = null;
   render();
-  renderTableModalRows(); // 同步更新大表格
+  renderTableModalRows();
 }
 
 // 開啟查看貴賓資料大表格
@@ -402,17 +522,17 @@ function renderTableModalRows() {
 
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td><strong>${tableName}</strong></td>
+      <td class="col-table"><strong>${tableName}</strong></td>
       <td><input type="text" value="${guest.dept}" data-field="dept"></td>
       <td><input type="text" value="${guest.title}" data-field="title"></td>
       <td><input type="text" value="${guest.name}" data-field="name"></td>
       <td><input type="text" value="${guest.diet}" data-field="diet"></td>
       <td><input type="text" value="${guest.contact}" data-field="contact"></td>
       <td><input type="text" value="${guest.notes}" data-field="notes"></td>
-      <td><button class="btn btn-xs btn-danger">刪除</button></td>
+      <td class="col-action"><button class="btn btn-xs btn-danger">刪除</button></td>
     `;
 
-    // 即時編輯欄位
+    // 即時編輯欄位同步
     tr.querySelectorAll('input').forEach(input => {
       input.addEventListener('change', (e) => {
         const field = e.target.dataset.field;
@@ -421,7 +541,6 @@ function renderTableModalRows() {
       });
     });
 
-    // 刪除按鈕
     tr.querySelector('.btn-danger').addEventListener('click', () => {
       if (confirm(`確定要刪除「${guest.name}」嗎？`)) {
         deleteGuest(guest.id);
@@ -438,28 +557,32 @@ function openColorModal() {
   list.innerHTML = '';
 
   const depts = [...new Set(state.guests.map(g => g.dept))];
-  depts.forEach(dept => {
-    const item = document.createElement('div');
-    item.className = 'color-item';
-    item.style.backgroundColor = getDeptColor(dept);
+  if (depts.length === 0) {
+    list.innerHTML = '<div style="text-align:center; color:#94a3b8; padding:20px;">尚無單位資料</div>';
+  } else {
+    depts.forEach(dept => {
+      const item = document.createElement('div');
+      item.className = 'color-item';
+      item.style.backgroundColor = getDeptColor(dept);
 
-    let options = PALETTE.map(p => 
-      `<option value="${p.code}" ${getDeptColor(dept) === p.code ? 'selected' : ''}>${p.name}</option>`
-    ).join('');
+      let options = PALETTE.map(p => 
+        `<option value="${p.code}" ${getDeptColor(dept) === p.code ? 'selected' : ''}>${p.name}</option>`
+      ).join('');
 
-    item.innerHTML = `
-      <strong>${dept}</strong>
-      <select>${options}</select>
-    `;
+      item.innerHTML = `
+        <strong>${dept}</strong>
+        <select>${options}</select>
+      `;
 
-    item.querySelector('select').addEventListener('change', (e) => {
-      state.deptColors[dept] = e.target.value;
-      render();
-      openColorModal(); // 刷新背景色
+      item.querySelector('select').addEventListener('change', (e) => {
+        state.deptColors[dept] = e.target.value;
+        render();
+        openColorModal();
+      });
+
+      list.appendChild(item);
     });
-
-    list.appendChild(item);
-  });
+  }
 
   colorModal.showModal();
 }
@@ -515,9 +638,10 @@ function saveGuestDetails() {
 
   detailsDialog.close();
   render();
+  renderTableModalRows(); // 同步更新大表格
 }
 
-// 匯入 Excel
+// 匯入 Excel（過濾已存在姓名）
 function handleExcelImport(e) {
   const file = e.target.files[0];
   if (!file) return;
@@ -528,20 +652,40 @@ function handleExcelImport(e) {
     const ws = wb.Sheets[wb.SheetNames[0]];
     const data = XLSX.utils.sheet_to_json(ws);
 
-    const imported = data.map((row, idx) => ({
-      id: `g-${Date.now()}-${idx}`,
-      dept: row['單位'] || '未指定單位',
-      title: row['頭銜'] || '',
-      name: row['姓名'] || '未知貴賓',
-      diet: row['飲食習慣'] || '無',
-      contact: row['聯絡方式'] || '',
-      notes: row['備註'] || '',
-      attending: true,
-      assignedTable: null
-    }));
+    // 取得現有貴賓姓名清單
+    const existingNames = new Set(state.guests.map(g => g.name.trim()));
 
-    state.guests.push(...imported);
-    render();
+    let importedCount = 0;
+    const imported = [];
+
+    data.forEach((row, idx) => {
+      const name = (row['姓名'] || '').toString().trim();
+      if (name && !existingNames.has(name)) {
+        imported.push({
+          id: `g-${Date.now()}-${idx}`,
+          dept: row['單位'] || '未指定單位',
+          title: row['頭銜'] || '',
+          name: name,
+          diet: row['飲食習慣'] || '無',
+          contact: row['聯絡方式'] || '',
+          notes: row['備註'] || '',
+          attending: true,
+          assignedTable: null
+        });
+        existingNames.add(name);
+        importedCount++;
+      }
+    });
+
+    if (imported.length > 0) {
+      state.guests.push(...imported);
+      render();
+      renderTableModalRows();
+      alert(`成功匯入 ${importedCount} 筆新貴賓資料！`);
+    } else {
+      alert('未匯入任何新資料（所有貴賓已存在於清單中）。');
+    }
+    e.target.value = ''; // 重置 input
   };
   reader.readAsBinaryString(file);
 }
@@ -620,6 +764,7 @@ function importProject(e) {
     } catch (err) {
       alert("專案檔案格式錯誤！");
     }
+    e.target.value = '';
   };
   reader.readAsText(file);
 }
