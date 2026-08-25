@@ -24,24 +24,20 @@
     <!-- 左側邊欄 -->
     <aside class="sidebar">
       <div class="sidebar-header">
-        <h3>待排入貴賓清單</h3>
-        <div class="sidebar-actions">
-          <button id="open-table-modal-btn" class="btn btn-sm">查看貴賓資料</button>
-          <button id="add-guest-btn" class="btn btn-sm btn-success">新增貴賓</button>
-        </div>
-        <div class="sidebar-controls">
+        <div class="sidebar-title-row">
+          <button id="open-color-picker-btn" class="btn btn-xs">顏色設定</button>
+          <h3>待排貴賓清單</h3>
           <label class="switch-label">
             顯示頭銜
             <input type="checkbox" id="toggle-titles" checked>
             <span class="slider"></span>
           </label>
-          <button id="open-color-picker-btn" class="btn btn-xs">單位顏色設定</button>
-          <label class="btn btn-xs btn-file">
-            匯入 Excel <input type="file" id="import-excel" accept=".xlsx, .xls">
-          </label>
+        </div>
+        <div class="sidebar-actions">
+          <button id="open-table-modal-btn" class="btn btn-sm btn-full">查看貴賓資料</button>
         </div>
       </div>
-      
+
       <!-- 貴賓清單 -->
       <div id="guest-list" class="guest-list"></div>
     </aside>
@@ -101,21 +97,27 @@
   <!-- 對話框 2：查看貴賓資料大表格 -->
   <dialog id="table-modal" class="dialog dialog-large">
     <div class="dialog-header">
-      <h3>貴賓總總資料表</h3>
-      <button class="close-x" id="table-modal-close">×</button>
+      <h3>貴賓總資料表</h3>
+      <div class="modal-header-actions">
+        <label class="btn btn-sm btn-file btn-success">
+          匯入 Excel <input type="file" id="import-excel" accept=".xlsx, .xls">
+        </label>
+        <button id="modal-add-guest-btn" class="btn btn-sm btn-success">+ 新增貴賓</button>
+        <button class="close-x" id="table-modal-close">×</button>
+      </div>
     </div>
     <div class="table-wrapper">
       <table id="guest-data-table">
         <thead>
           <tr>
-            <th>桌次</th>
+            <th class="col-table">桌次</th>
             <th>單位</th>
             <th>頭銜</th>
             <th>姓名</th>
             <th>飲食習慣</th>
             <th>聯絡方式</th>
             <th>備註</th>
-            <th>操作</th>
+            <th class="col-action">操作</th>
           </tr>
         </thead>
         <tbody id="guest-table-body"></tbody>
