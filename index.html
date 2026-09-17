@@ -1,0 +1,946 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>尾牙主桌排位系統</title>
+
+<script>
+  function cdnFail(name) {
+    var el = document.getElementById('loading-msg');
+    if (el) {
+      el.innerHTML = '⚠️ 「' + name + '」載入失敗，請確認網路能連到 cdn.jsdelivr.net，' +
+        '或重新整理頁面再試一次。<br><span style="font-size:12px;color:#8a7f68">' +
+        '（企業網路若封鎖外部 CDN，此頁面將無法運作）</span>';
+    }
+  }
+  window.addEventListener('load', function () {
+    setTimeout(function () {
+      if (!window.__seatingAppMounted) {
+        var el = document.getElementById('loading-msg');
+        if (el) {
+          el.innerHTML = '⚠️ 頁面載入時間過長，可能是網路無法連到 CDN（cdn.jsdelivr.net）。' +
+            '<br>請檢查網路連線，或改用其他網路環境開啟此頁面後重新整理。';
+        }
+      }
+    }, 8000);
+  });
+</script>
+<script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js" crossorigin onerror="cdnFail('React')"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js" crossorigin onerror="cdnFail('ReactDOM')"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" onerror="cdnFail('XLSX')"></script>
+<script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7/babel.min.js" onerror="cdnFail('Babel')"></script>
+
+<style>
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', system-ui, sans-serif;
+  background: #FBF7EF;
+  color: #2B2118;
+}
+.app { display: flex; height: 100vh; overflow: hidden; }
+
+/* ---------- Sidebar ---------- */
+.sidebar {
+  width: 300px; min-width: 300px; background: #FFFFFF;
+  border-right: 1px solid #E8DEC8; display: flex; flex-direction: column; height: 100%;
+}
+.sidebar-header {
+  padding: 16px; border-bottom: 1px solid #EFE6D2;
+  background: linear-gradient(135deg, #7A1F2B, #5C1420); color: #F6E7B0;
+}
+.sidebar-header h1 { font-size: 16px; margin: 0 0 12px; font-weight: 700; letter-spacing: 0.5px; }
+.toolbar-buttons { display: flex; gap: 6px; margin-bottom: 6px; }
+.toolbar-buttons button { flex: 1; }
+button {
+  cursor: pointer; border: 1px solid #D9CBA3; background: #FFFDF8; color: #4A3A22;
+  border-radius: 8px; padding: 7px 10px; font-size: 12.5px; transition: all 0.15s ease;
+}
+button:hover { background: #F3E9CE; }
+button.primary { background: #B8862F; border-color: #B8862F; color: #fff; font-weight: 600; }
+button.primary:hover { background: #A2761F; }
+button.danger { background: #A23A3A; border-color: #A23A3A; color: #fff; }
+button.danger:hover { background: #872E2E; }
+button.danger-outline { color: #A23A3A; border-color: #A23A3A; background: #fff; }
+.sidebar-tabs { display: flex; border-bottom: 1px solid #EFE6D2; }
+.sidebar-tabs button { flex: 1; border: none; border-radius: 0; background: #FBF7EF; padding: 10px 4px; font-size: 12.5px; }
+.sidebar-tabs button.active { background: #fff; border-bottom: 2px solid #B8862F; font-weight: 700; color: #7A1F2B; }
+.search-box { margin: 10px 12px; padding: 8px 10px; border: 1px solid #E1D6B8; border-radius: 8px; font-size: 13px; }
+.sidebar-list { flex: 1; overflow-y: auto; padding: 0 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+.empty-hint { color: #999; font-size: 13px; text-align: center; margin-top: 20px; }
+
+/* ---------- Guest Card ---------- */
+.guest-card {
+  position: relative; padding: 8px 30px 8px 10px; border-radius: 8px;
+  border: 1px solid rgba(0,0,0,0.08); cursor: grab; box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+.guest-card:active { cursor: grabbing; }
+.guest-card-name { font-weight: 700; font-size: 13.5px; }
+.guest-card-title { font-size: 11.5px; color: #5a5142; margin-top: 1px; }
+.diet-dot { position: absolute; right: 8px; top: 10px; width: 9px; height: 9px; border-radius: 50%; background: #E08A2E; }
+.attendance-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.08);
+}
+.seated-flag { font-size: 10.5px; color: #7A1F2B; font-weight: 700; margin-top: 2px; }
+
+/* Switch */
+.switch { position: relative; display: inline-block; width: 42px; height: 24px; flex-shrink: 0; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider { position: absolute; cursor: pointer; inset: 0; background-color: #ccc; border-radius: 24px; transition: 0.2s; }
+.slider::before {
+  position: absolute; content: ''; height: 18px; width: 18px; left: 3px; bottom: 3px;
+  background-color: white; border-radius: 50%; transition: 0.2s;
+}
+.switch input:checked + .slider { background-color: #4CAF6D; }
+.switch input:checked + .slider::before { transform: translateX(18px); }
+
+/* ---------- Canvas Area ---------- */
+.canvas-area { flex: 1; display: flex; flex-direction: column; position: relative; height: 100%; overflow: hidden; }
+.canvas-top-bar { display: flex; align-items: center; gap: 8px; padding: 10px 16px; background: #fff; border-bottom: 1px solid #EFE6D2; }
+.canvas-top-bar .spacer { flex: 1; }
+.stat { font-size: 13px; color: #5a5142; font-weight: 600; }
+.canvas-scroll { flex: 1; overflow: auto; padding: 24px; }
+.tables-grid { display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-start; }
+
+/* ---------- Table Card ---------- */
+.table-card { background: #fff; border-radius: 14px; border: 1px solid #EFE6D2; box-shadow: 0 2px 6px rgba(0,0,0,0.05); overflow: hidden; }
+.table-header {
+  display: flex; align-items: center; gap: 8px; padding: 10px 12px;
+  background: #FBF3DE; border-bottom: 1px solid #EFE6D2; cursor: grab;
+}
+.table-header:active { cursor: grabbing; }
+.table-name { font-weight: 800; color: #7A1F2B; font-size: 15px; }
+.table-count { font-size: 12.5px; background: #7A1F2B; color: #F6E7B0; padding: 2px 8px; border-radius: 10px; font-weight: 700; }
+.table-header-actions { margin-left: auto; display: flex; gap: 4px; }
+.table-header-actions button { padding: 4px 7px; }
+.table-round { position: relative; margin: 14px; }
+.table-surface {
+  position: absolute; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #8C2632, #5C1420);
+  color: #F6E7B0; display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 13px; border: 3px solid #D4A94C;
+  box-shadow: inset 0 0 12px rgba(0,0,0,0.35);
+}
+.seat {
+  position: absolute; border-radius: 50%; background: #F0EDE6; border: 2px solid #C9BFA6;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; font-size: 10.5px; line-height: 1.15; padding: 2px; cursor: grab;
+  overflow: hidden; transition: transform 0.1s ease;
+}
+.seat:hover { transform: scale(1.06); z-index: 2; }
+.seat.empty { cursor: default; color: #A99F8C; }
+.seat.occupied { cursor: grab; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
+.seat.diet { border-color: #E08A2E; border-width: 3px; }
+.seat.absent { filter: grayscale(1) brightness(0.92); }
+.seat-name { font-weight: 700; font-size: 11px; word-break: break-all; }
+.seat-title { font-size: 9px; color: #6a6152; margin-top: 1px; }
+.seat-index { color: #B9AF97; font-size: 11px; }
+
+/* ---------- Zoom control ---------- */
+.zoom-control {
+  position: absolute; right: 20px; bottom: 20px; background: #fff; border: 1px solid #E8DEC8;
+  border-radius: 30px; padding: 6px 10px; display: flex; align-items: center; gap: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+}
+.zoom-control button { width: 28px; height: 28px; border-radius: 50%; padding: 0; font-weight: 700; }
+.zoom-control span { font-size: 12.5px; min-width: 40px; text-align: center; font-weight: 600; }
+
+/* ---------- Modal ---------- */
+.modal-overlay { position: fixed; inset: 0; background: rgba(30,20,10,0.45); display: flex; align-items: center; justify-content: center; z-index: 50; }
+.modal-box { background: #fff; border-radius: 14px; padding: 20px 22px; width: 380px; max-height: 86vh; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.25); }
+.modal-title-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.modal-title-row h2 { font-size: 16px; margin: 0; color: #7A1F2B; }
+.modal-close { border: none; background: none; font-size: 15px; padding: 4px 8px; }
+.modal-field { margin-bottom: 10px; }
+.modal-field label { display: block; font-size: 11.5px; color: #8a7f68; margin-bottom: 3px; font-weight: 700; }
+.modal-field input { width: 100%; padding: 7px 9px; border: 1px solid #E1D6B8; border-radius: 7px; font-size: 13px; }
+.modal-value { font-size: 14px; padding: 4px 0; }
+.modal-actions { display: flex; gap: 8px; margin-top: 14px; }
+.modal-actions button { flex: 1; }
+.seat-label-badge { display: inline-block; background: #FBF3DE; color: #7A1F2B; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 20px; margin-bottom: 12px; }
+.capacity-options { display: flex; gap: 6px; }
+.capacity-options button.active { background: #B8862F; color: #fff; border-color: #B8862F; }
+
+.loading-screen { display: flex; align-items: center; justify-content: center; height: 100vh; font-size: 15px; color: #7A1F2B; }
+</style>
+</head>
+<body>
+<div id="root"><div class="loading-screen" id="loading-msg">載入中...</div></div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useRef, useMemo, useEffect, useCallback } = React;
+
+/* ============ utils/colors ============ */
+const PALETTE = [
+  '#FDE2E2', '#FDEBD3', '#FCF3CF', '#E4F5D8', '#D6F0EE',
+  '#DCEBFC', '#E3DEFB', '#F6DDEE', '#E8E2D8', '#D9F0FA',
+  '#F0E0D6', '#DEE9E0',
+];
+const colorCache = new Map();
+function colorForUnit(unit) {
+  const key = (unit || '未分類').trim() || '未分類';
+  if (colorCache.has(key)) return colorCache.get(key);
+  const color = PALETTE[colorCache.size % PALETTE.length];
+  colorCache.set(key, color);
+  return color;
+}
+
+/* ============ utils/id ============ */
+let idCounter = 0;
+function makeId(prefix = 'id') {
+  idCounter += 1;
+  return `${prefix}_${Date.now().toString(36)}_${idCounter}`;
+}
+
+/* ============ utils/storage ============ */
+const STORAGE_KEY = 'yearend-banquet-seating-v1';
+function saveState(state) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+  catch (e) { console.warn('無法儲存至 localStorage', e); }
+}
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { console.warn('無法讀取 localStorage', e); return null; }
+}
+function clearState() { localStorage.removeItem(STORAGE_KEY); }
+
+/* ============ utils/excelIO ============ */
+function parseGuestExcel(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+
+        const pick = (row, names) => {
+          for (const n of names) {
+            if (row[n] !== undefined && row[n] !== null && row[n] !== '') return String(row[n]).trim();
+          }
+          return '';
+        };
+
+        const guests = rows
+          .map((row) => ({
+            unit: pick(row, ['單位', '公司', '部門']),
+            title: pick(row, ['頭銜', '職稱']),
+            name: pick(row, ['姓名', '名字']),
+            diet: pick(row, ['飲食習慣', '飲食禁忌', '飲食']),
+            contact: pick(row, ['聯絡方式', '電話', '手機']),
+            note: pick(row, ['其他備註', '備註', '備注']),
+            attending: true,
+          }))
+          .filter((g) => g.name);
+
+        resolve(guests);
+      } catch (err) { reject(err); }
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function exportSeatingToExcel(guests, tables, filename = '尾牙排位表.xlsx') {
+  const guestMap = new Map(guests.map((g) => [g.id, g]));
+  const seatedRows = [];
+  tables.forEach((t) => {
+    t.seats.forEach((gid, idx) => {
+      if (!gid) return;
+      const g = guestMap.get(gid);
+      if (!g) return;
+      seatedRows.push({
+        桌次: t.name, 座位號: idx + 1, 單位: g.unit, 頭銜: g.title, 姓名: g.name,
+        飲食習慣: g.diet, 聯絡方式: g.contact, 備註: g.note,
+        出席狀態: g.attending ? '出席' : '不出席',
+      });
+    });
+  });
+
+  const seatedIds = new Set(tables.flatMap((t) => t.seats.filter(Boolean)));
+  const unseatedRows = guests
+    .filter((g) => !seatedIds.has(g.id))
+    .map((g) => ({
+      單位: g.unit, 頭銜: g.title, 姓名: g.name, 飲食習慣: g.diet,
+      聯絡方式: g.contact, 備註: g.note, 出席狀態: g.attending ? '出席' : '不出席',
+    }));
+
+  const wb = XLSX.utils.book_new();
+  const ws1 = XLSX.utils.json_to_sheet(seatedRows);
+  const ws2 = XLSX.utils.json_to_sheet(unseatedRows);
+  XLSX.utils.book_append_sheet(wb, ws1, '已排位');
+  XLSX.utils.book_append_sheet(wb, ws2, '未排位');
+  XLSX.writeFile(wb, filename);
+}
+
+/* ============ utils/canvasExport ============ */
+function wrapText(ctx, text, maxWidth) {
+  if (!text) return [''];
+  if (ctx.measureText(text).width <= maxWidth) return [text];
+  const lines = [];
+  let line = '';
+  for (const ch of text) {
+    const test = line + ch;
+    if (ctx.measureText(test).width > maxWidth && line) { lines.push(line); line = ch; }
+    else { line = test; }
+  }
+  if (line) lines.push(line);
+  return lines.slice(0, 2);
+}
+
+function exportTableAsImage(table, guestsById, showTitles) {
+  const size = 900;
+  const canvas = document.createElement('canvas');
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#FFFDF8';
+  ctx.fillRect(0, 0, size, size);
+
+  const center = size / 2;
+  const tableRadius = 190;
+  const seatRadius = 46;
+  const orbit = tableRadius + seatRadius + 34;
+
+  ctx.beginPath();
+  ctx.arc(center, center, tableRadius, 0, Math.PI * 2);
+  ctx.fillStyle = '#7A1F2B';
+  ctx.fill();
+  ctx.lineWidth = 6;
+  ctx.strokeStyle = '#D4A94C';
+  ctx.stroke();
+
+  ctx.fillStyle = '#F6E7B0';
+  ctx.font = 'bold 40px "Noto Sans TC", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(table.name, center, center - 14);
+  ctx.font = '22px "Noto Sans TC", sans-serif';
+  const occupied = table.seats.filter(Boolean).length;
+  ctx.fillText(`${occupied} / ${table.capacity} 人`, center, center + 26);
+
+  const n = table.capacity;
+  for (let i = 0; i < n; i++) {
+    const angle = (i / n) * Math.PI * 2 - Math.PI / 2;
+    const x = center + orbit * Math.cos(angle);
+    const y = center + orbit * Math.sin(angle);
+    const guestId = table.seats[i];
+    const guest = guestId ? guestsById.get(guestId) : null;
+
+    ctx.beginPath();
+    ctx.arc(x, y, seatRadius, 0, Math.PI * 2);
+    ctx.fillStyle = guest ? colorForUnit(guest.unit) : '#F0EDE6';
+    ctx.fill();
+
+    const hasDiet = guest && guest.diet;
+    ctx.lineWidth = hasDiet ? 5 : 2;
+    ctx.strokeStyle = hasDiet ? '#E08A2E' : '#B8AF9E';
+    ctx.stroke();
+
+    if (guest && guest.attending === false) {
+      ctx.fillStyle = 'rgba(120,120,120,0.55)';
+      ctx.beginPath();
+      ctx.arc(x, y, seatRadius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.fillStyle = '#2B2118';
+    ctx.font = 'bold 15px "Noto Sans TC", sans-serif';
+    if (guest) {
+      const nameLines = wrapText(ctx, guest.name, seatRadius * 1.7);
+      let ty = y - (showTitles && guest.title ? 8 : 0);
+      nameLines.forEach((line, idx) => { ctx.fillText(line, x, ty + idx * 17); });
+      if (showTitles && guest.title) {
+        ctx.font = '12px "Noto Sans TC", sans-serif';
+        ctx.fillText(guest.title, x, y + 18);
+      }
+    } else {
+      ctx.font = '13px "Noto Sans TC", sans-serif';
+      ctx.fillStyle = '#8A8272';
+      ctx.fillText(`${i + 1}`, x, y);
+    }
+  }
+
+  canvas.toBlob((blob) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `${table.name}.png`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+}
+
+/* ============ components ============ */
+function GuestCard({ guest, onDragStart, onContextMenu, draggable = true }) {
+  return (
+    <div className="guest-card" style={{ background: colorForUnit(guest.unit) }}
+      draggable={draggable} onDragStart={onDragStart} onContextMenu={onContextMenu}
+      title="拖拉可安排座位・右鍵查看詳細資料">
+      <div className="guest-card-name">{guest.name}</div>
+      {guest.title && <div className="guest-card-title">{guest.title}</div>}
+      {guest.diet && <span className="diet-dot" title={`飲食習慣：${guest.diet}`} />}
+    </div>
+  );
+}
+
+function Sidebar({
+  guests, seatedGuestIds, onImportClick, onAddGuestClick, onExportProject, onExportExcel,
+  onReset, onDragStartGuest, onDropToPool, onGuestContextMenu, onToggleAttending,
+  showTitles, onToggleShowTitles,
+}) {
+  const [tab, setTab] = useState('pending');
+  const [keyword, setKeyword] = useState('');
+
+  const pendingGuests = useMemo(
+    () => guests.filter((g) => !seatedGuestIds.has(g.id)),
+    [guests, seatedGuestIds]
+  );
+
+  const filtered = useMemo(() => {
+    const list = tab === 'pending' ? pendingGuests : guests;
+    if (!keyword.trim()) return list;
+    const k = keyword.trim().toLowerCase();
+    return list.filter((g) => g.name.toLowerCase().includes(k) || (g.unit || '').toLowerCase().includes(k));
+  }, [tab, pendingGuests, guests, keyword]);
+
+  return (
+    <aside className="sidebar" onDragOver={(e) => e.preventDefault()} onDrop={onDropToPool}>
+      <div className="sidebar-header">
+        <h1>尾牙主桌排位系統</h1>
+        <div className="toolbar-buttons">
+          <button onClick={onImportClick}>📥 匯入 Excel</button>
+          <button onClick={onAddGuestClick}>➕ 新增貴賓</button>
+        </div>
+        <div className="toolbar-buttons">
+          <button onClick={onExportProject}>💾 匯出專案</button>
+          <button onClick={onExportExcel}>📊 匯出 Excel</button>
+        </div>
+        <div className="toolbar-buttons">
+          <button className="danger" onClick={onReset}>🔄 重置排位</button>
+          <button onClick={onToggleShowTitles}>{showTitles ? '🙈 隱藏頭銜' : '👁 顯示頭銜'}</button>
+        </div>
+      </div>
+
+      <div className="sidebar-tabs">
+        <button className={tab === 'pending' ? 'active' : ''} onClick={() => setTab('pending')}>
+          待排入座 ({pendingGuests.length})
+        </button>
+        <button className={tab === 'attendance' ? 'active' : ''} onClick={() => setTab('attendance')}>
+          出席狀態管理
+        </button>
+      </div>
+
+      <input className="search-box" placeholder="搜尋姓名或單位..." value={keyword}
+        onChange={(e) => setKeyword(e.target.value)} />
+
+      <div className="sidebar-list">
+        {tab === 'pending' && filtered.map((g) => (
+          <GuestCard key={g.id} guest={g}
+            onDragStart={(e) => onDragStartGuest(e, g)}
+            onContextMenu={(e) => { e.preventDefault(); onGuestContextMenu(g); }} />
+        ))}
+
+        {tab === 'attendance' && filtered.map((g) => (
+          <div key={g.id} className="attendance-row" style={{ background: colorForUnit(g.unit) }}
+            onContextMenu={(e) => { e.preventDefault(); onGuestContextMenu(g); }}>
+            <div className="attendance-info">
+              <div className="guest-card-name">{g.name}</div>
+              <div className="guest-card-title">{g.title}</div>
+              {seatedGuestIds.has(g.id) && <div className="seated-flag">已入座</div>}
+            </div>
+            <label className="switch" title="出席 / 不出席">
+              <input type="checkbox" checked={g.attending} onChange={() => onToggleAttending(g.id)} />
+              <span className="slider" />
+            </label>
+          </div>
+        ))}
+
+        {filtered.length === 0 && (
+          <div className="empty-hint">{tab === 'pending' ? '目前沒有待排入座的貴賓' : '尚無資料，請先匯入'}</div>
+        )}
+      </div>
+    </aside>
+  );
+}
+
+function TableCard({
+  table, guestsById, showTitles, onDropOnSeat, onDragStartSeat, onDropOnTable,
+  onDragStartTable, onSeatContextMenu, onExportImage, onDeleteTable, onRename,
+}) {
+  const occupied = table.seats.filter(Boolean).length;
+  const size = 340;
+  const center = size / 2;
+  const tableRadius = 78;
+  const seatSize = 58;
+  const orbit = tableRadius + seatSize / 2 + 26;
+
+  return (
+    <div className="table-card">
+      <div className="table-header" draggable
+        onDragStart={(e) => onDragStartTable(e, table.id)}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => onDropOnTable(e, table.id)}
+        title="拖拉可與其他桌交換座位安排">
+        <span className="table-name" onDoubleClick={() => onRename(table)} title="雙擊可重新命名">
+          {table.name}
+        </span>
+        <span className="table-count">{occupied} / {table.capacity}</span>
+        <div className="table-header-actions">
+          <button title="匯出此桌圖片" onClick={() => onExportImage(table)}>🖼</button>
+          <button title="刪除此桌" onClick={() => onDeleteTable(table.id)}>🗑</button>
+        </div>
+      </div>
+
+      <div className="table-round" style={{ width: size, height: size }}
+        onDragOver={(e) => e.preventDefault()} onDrop={(e) => onDropOnTable(e, table.id)}>
+        <div className="table-surface" style={{
+          width: tableRadius * 2, height: tableRadius * 2,
+          left: center - tableRadius, top: center - tableRadius,
+        }}>
+          <span>{table.name}</span>
+        </div>
+
+        {table.seats.map((guestId, idx) => {
+          const angle = (idx / table.capacity) * Math.PI * 2 - Math.PI / 2;
+          const x = center + orbit * Math.cos(angle) - seatSize / 2;
+          const y = center + orbit * Math.sin(angle) - seatSize / 2;
+          const guest = guestId ? guestsById.get(guestId) : null;
+          const hasDiet = guest && guest.diet;
+          const isAbsent = guest && guest.attending === false;
+
+          return (
+            <div key={idx}
+              className={`seat ${guest ? 'occupied' : 'empty'} ${hasDiet ? 'diet' : ''} ${isAbsent ? 'absent' : ''}`}
+              style={{ width: seatSize, height: seatSize, left: x, top: y, background: guest ? colorForUnit(guest.unit) : undefined }}
+              draggable={!!guest}
+              onDragStart={(e) => guest && onDragStartSeat(e, table.id, idx, guest.id)}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => onDropOnSeat(e, table.id, idx)}
+              onContextMenu={(e) => { if (!guest) return; e.preventDefault(); e.stopPropagation(); onSeatContextMenu(guest); }}
+              title={guest ? `${guest.name} ${guest.title || ''}` : `座位 ${idx + 1}`}>
+              {guest ? (
+                <>
+                  <div className="seat-name">{guest.name}</div>
+                  {showTitles && guest.title && <div className="seat-title">{guest.title}</div>}
+                </>
+              ) : (
+                <div className="seat-index">{idx + 1}</div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function GuestDetailModal({ guest, seatLabel, onClose, onSave, onDelete, onUnseat, onToggleAttending }) {
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState(guest);
+
+  useEffect(() => { setForm(guest); setEditing(false); }, [guest]);
+
+  if (!guest) return null;
+
+  const field = (label, key, placeholder = '') =>
+    editing ? (
+      <div className="modal-field">
+        <label>{label}</label>
+        <input value={form[key] || ''} placeholder={placeholder}
+          onChange={(e) => setForm({ ...form, [key]: e.target.value })} />
+      </div>
+    ) : (
+      <div className="modal-field">
+        <label>{label}</label>
+        <div className="modal-value">{guest[key] || '－'}</div>
+      </div>
+    );
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-title-row">
+          <h2>{editing ? '編輯貴賓資料' : '貴賓詳細資料'}</h2>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+
+        {seatLabel && <div className="seat-label-badge">目前座位：{seatLabel}</div>}
+
+        {field('單位', 'unit')}
+        {field('頭銜', 'title')}
+        {field('姓名', 'name')}
+        {field('飲食習慣 / 禁忌', 'diet', '例：素食、不吃牛')}
+        {field('聯絡方式', 'contact')}
+        {field('其他備註', 'note', '例：19:00 到、20:30 先離席')}
+
+        <div className="modal-field">
+          <label>出席狀態</label>
+          <label className="switch">
+            <input type="checkbox" checked={guest.attending} onChange={() => onToggleAttending(guest.id)} />
+            <span className="slider" />
+          </label>
+        </div>
+
+        <div className="modal-actions">
+          {editing ? (
+            <>
+              <button className="primary" onClick={() => { onSave(form); setEditing(false); }}>儲存</button>
+              <button onClick={() => setEditing(false)}>取消</button>
+            </>
+          ) : (
+            <>
+              <button className="primary" onClick={() => setEditing(true)}>編輯</button>
+              {seatLabel && <button onClick={() => onUnseat(guest.id)}>移出座位</button>}
+              <button className="danger" onClick={() => onDelete(guest.id)}>刪除此貴賓</button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const EMPTY_GUEST_FORM = { unit: '', title: '', name: '', diet: '', contact: '', note: '' };
+
+function AddGuestModal({ onClose, onAdd }) {
+  const [form, setForm] = useState(EMPTY_GUEST_FORM);
+  const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
+
+  const submit = () => {
+    if (!form.name.trim()) { alert('請輸入姓名'); return; }
+    onAdd({ ...form, attending: true });
+    onClose();
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-title-row">
+          <h2>新增貴賓</h2>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-field"><label>單位</label><input value={form.unit} onChange={set('unit')} /></div>
+        <div className="modal-field"><label>頭銜</label><input value={form.title} onChange={set('title')} /></div>
+        <div className="modal-field"><label>姓名 *</label><input value={form.name} onChange={set('name')} /></div>
+        <div className="modal-field"><label>飲食習慣 / 禁忌</label><input value={form.diet} onChange={set('diet')} /></div>
+        <div className="modal-field"><label>聯絡方式</label><input value={form.contact} onChange={set('contact')} /></div>
+        <div className="modal-field"><label>其他備註</label><input value={form.note} onChange={set('note')} /></div>
+        <div className="modal-actions">
+          <button className="primary" onClick={submit}>新增</button>
+          <button onClick={onClose}>取消</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AddTableModal({ onClose, onAdd, defaultName }) {
+  const [capacity, setCapacity] = useState(12);
+  const [name, setName] = useState(defaultName);
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-title-row">
+          <h2>新增桌次</h2>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-field">
+          <label>桌次名稱</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} />
+        </div>
+        <div className="modal-field">
+          <label>座位數</label>
+          <div className="capacity-options">
+            {[8, 10, 12, 16].map((c) => (
+              <button key={c} className={capacity === c ? 'active' : ''} onClick={() => setCapacity(c)}>{c} 人</button>
+            ))}
+          </div>
+        </div>
+        <div className="modal-actions">
+          <button className="primary" onClick={() => { onAdd({ name: name.trim() || defaultName, capacity }); onClose(); }}>新增</button>
+          <button onClick={onClose}>取消</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============ App ============ */
+const DEFAULT_CAPACITY = 12;
+function emptyTable(index, capacity = DEFAULT_CAPACITY) {
+  return { id: makeId('table'), name: `主桌${index}`, capacity, seats: Array(capacity).fill(null) };
+}
+
+function App() {
+  const saved = loadState();
+
+  const [guests, setGuests] = useState((saved && saved.guests) || []);
+  const [tables, setTables] = useState((saved && saved.tables) || [emptyTable(1)]);
+  const [showTitles, setShowTitles] = useState(saved && typeof saved.showTitles === 'boolean' ? saved.showTitles : true);
+  const [zoom, setZoom] = useState(1);
+
+  const [detailGuestId, setDetailGuestId] = useState(null);
+  const [addGuestOpen, setAddGuestOpen] = useState(false);
+  const [addTableOpen, setAddTableOpen] = useState(false);
+
+  const fileInputRef = useRef(null);
+  const projectInputRef = useRef(null);
+
+  useEffect(() => { saveState({ guests, tables, showTitles }); }, [guests, tables, showTitles]);
+
+  const guestsById = useMemo(() => new Map(guests.map((g) => [g.id, g])), [guests]);
+  const detailGuest = detailGuestId ? guestsById.get(detailGuestId) || null : null;
+  const seatedGuestIds = useMemo(() => new Set(tables.flatMap((t) => t.seats.filter(Boolean))), [tables]);
+
+  const seatLabelFor = useCallback((guestId) => {
+    for (const t of tables) {
+      const idx = t.seats.indexOf(guestId);
+      if (idx !== -1) return `${t.name} · 第 ${idx + 1} 位`;
+    }
+    return null;
+  }, [tables]);
+
+  const handleImportClick = () => fileInputRef.current && fileInputRef.current.click();
+
+  const handleFileChosen = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      const parsed = await parseGuestExcel(file);
+      if (parsed.length === 0) {
+        alert('沒有解析到任何賓客資料，請確認欄位名稱（單位/頭銜/姓名/飲食習慣/聯絡方式/備註）');
+        return;
+      }
+      setGuests((prev) => [...prev, ...parsed.map((g) => ({ ...g, id: makeId('guest') }))]);
+    } catch (err) {
+      console.error(err);
+      alert('匯入失敗，請確認檔案格式是否正確');
+    }
+  };
+
+  const handleAddGuest = (form) => setGuests((prev) => [...prev, { ...form, id: makeId('guest') }]);
+
+  const toggleAttending = (guestId) =>
+    setGuests((prev) => prev.map((g) => (g.id === guestId ? { ...g, attending: !g.attending } : g)));
+
+  const dragPayload = useRef(null);
+
+  const onDragStartGuest = (e, guest) => {
+    dragPayload.current = { type: 'guest', guestId: guest.id };
+    e.dataTransfer.effectAllowed = 'move';
+  };
+  const onDragStartSeat = (e, tableId, seatIndex, guestId) => {
+    dragPayload.current = { type: 'seat', tableId, seatIndex, guestId };
+    e.dataTransfer.effectAllowed = 'move';
+  };
+  const onDragStartTable = (e, tableId) => {
+    dragPayload.current = { type: 'table', tableId };
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const removeGuestFromAllSeats = (tablesState, guestId) =>
+    tablesState.map((t) => ({ ...t, seats: t.seats.map((g) => (g === guestId ? null : g)) }));
+
+  const onDropOnSeat = (e, targetTableId, targetSeatIndex) => {
+    e.preventDefault(); e.stopPropagation();
+    const payload = dragPayload.current;
+    dragPayload.current = null;
+    if (!payload) return;
+
+    setTables((prev) => {
+      let next = prev.map((t) => ({ ...t, seats: [...t.seats] }));
+      const targetTable = next.find((t) => t.id === targetTableId);
+      if (!targetTable) return prev;
+      const targetOccupant = targetTable.seats[targetSeatIndex];
+
+      if (payload.type === 'guest') {
+        next = removeGuestFromAllSeats(next, payload.guestId);
+        const tt = next.find((t) => t.id === targetTableId);
+        tt.seats[targetSeatIndex] = payload.guestId;
+        return next;
+      }
+
+      if (payload.type === 'seat') {
+        const fromTable = next.find((t) => t.id === payload.tableId);
+        if (!fromTable) return prev;
+        if (fromTable.id === targetTable.id && payload.seatIndex === targetSeatIndex) return prev;
+        const movingGuest = fromTable.seats[payload.seatIndex];
+        fromTable.seats[payload.seatIndex] = targetOccupant;
+        targetTable.seats[targetSeatIndex] = movingGuest;
+        return next;
+      }
+
+      return prev;
+    });
+  };
+
+  const onDropOnTable = (e, targetTableId) => {
+    e.preventDefault(); e.stopPropagation();
+    const payload = dragPayload.current;
+    dragPayload.current = null;
+    if (!payload || payload.type !== 'table') return;
+    if (payload.tableId === targetTableId) return;
+
+    setTables((prev) => {
+      const next = prev.map((t) => ({ ...t }));
+      const a = next.find((t) => t.id === payload.tableId);
+      const b = next.find((t) => t.id === targetTableId);
+      if (!a || !b) return prev;
+      const tmpSeats = a.seats, tmpCapacity = a.capacity;
+      a.seats = b.seats; a.capacity = b.capacity;
+      b.seats = tmpSeats; b.capacity = tmpCapacity;
+      return next;
+    });
+  };
+
+  const onDropToPool = (e) => {
+    e.preventDefault();
+    const payload = dragPayload.current;
+    dragPayload.current = null;
+    if (!payload || payload.type !== 'seat') return;
+    setTables((prev) => prev.map((t) =>
+      t.id === payload.tableId
+        ? { ...t, seats: t.seats.map((g, idx) => (idx === payload.seatIndex ? null : g)) }
+        : t
+    ));
+  };
+
+  const handleAddTable = ({ name, capacity }) =>
+    setTables((prev) => [...prev, { id: makeId('table'), name, capacity, seats: Array(capacity).fill(null) }]);
+
+  const handleDeleteTable = (tableId) => {
+    if (!window.confirm('確定要刪除這一桌嗎？桌上賓客將回到待排清單。')) return;
+    setTables((prev) => prev.filter((t) => t.id !== tableId));
+  };
+
+  const handleRenameTable = (table) => {
+    const name = window.prompt('輸入新的桌次名稱', table.name);
+    if (!name) return;
+    setTables((prev) => prev.map((t) => (t.id === table.id ? { ...t, name } : t)));
+  };
+
+  const handleGuestContextMenu = (guest) => setDetailGuestId(guest.id);
+  const handleSaveGuest = (form) => setGuests((prev) => prev.map((g) => (g.id === form.id ? { ...form } : g)));
+  const handleDeleteGuest = (guestId) => {
+    if (!window.confirm('確定要刪除這位貴賓嗎？此動作無法復原。')) return;
+    setTables((prev) => removeGuestFromAllSeats(prev, guestId));
+    setGuests((prev) => prev.filter((g) => g.id !== guestId));
+    setDetailGuestId(null);
+  };
+  const handleUnseat = (guestId) => setTables((prev) => removeGuestFromAllSeats(prev, guestId));
+
+  const handleExportProject = () => {
+    const data = JSON.stringify({ guests, tables, showTitles }, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = '尾牙排位專案.json';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportProjectClick = () => projectInputRef.current && projectInputRef.current.click();
+  const handleImportProjectFile = (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (data.guests && data.tables) {
+          setGuests(data.guests);
+          setTables(data.tables);
+          if (typeof data.showTitles === 'boolean') setShowTitles(data.showTitles);
+        } else { alert('專案檔格式不正確'); }
+      } catch (err) { alert('無法讀取此專案檔'); }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleExportExcel = () => exportSeatingToExcel(guests, tables);
+  const handleExportTableImage = (table) => exportTableAsImage(table, guestsById, showTitles);
+
+  const handleReset = () => {
+    if (!window.confirm('確定要重置所有座位安排嗎？賓客名單不會被刪除，只會全部退回待排清單。')) return;
+    setTables((prev) => prev.map((t) => ({ ...t, seats: Array(t.capacity).fill(null) })));
+  };
+
+  const handleClearAll = () => {
+    if (!window.confirm('這會清除所有賓客與桌次資料，確定要全部清空嗎？')) return;
+    clearState();
+    setGuests([]);
+    setTables([emptyTable(1)]);
+  };
+
+  return (
+    <div className="app">
+      <input type="file" ref={fileInputRef} accept=".xlsx,.xls,.csv" style={{ display: 'none' }} onChange={handleFileChosen} />
+      <input type="file" ref={projectInputRef} accept=".json" style={{ display: 'none' }} onChange={handleImportProjectFile} />
+
+      <Sidebar
+        guests={guests} seatedGuestIds={seatedGuestIds}
+        onImportClick={handleImportClick} onAddGuestClick={() => setAddGuestOpen(true)}
+        onExportProject={handleExportProject} onExportExcel={handleExportExcel}
+        onReset={handleReset} onDragStartGuest={onDragStartGuest} onDropToPool={onDropToPool}
+        onGuestContextMenu={handleGuestContextMenu} onToggleAttending={toggleAttending}
+        showTitles={showTitles} onToggleShowTitles={() => setShowTitles((s) => !s)}
+      />
+
+      <main className="canvas-area">
+        <div className="canvas-top-bar">
+          <button className="primary" onClick={() => setAddTableOpen(true)}>➕ 新增桌次</button>
+          <button onClick={handleImportProjectClick}>📂 匯入專案</button>
+          <button className="danger-outline" onClick={handleClearAll}>清空全部資料</button>
+          <div className="spacer" />
+          <span className="stat">
+            共 {tables.length} 桌・已排 {seatedGuestIds.size} 人・待排 {guests.length - seatedGuestIds.size} 人
+          </span>
+        </div>
+
+        <div className="canvas-scroll">
+          <div className="tables-grid" style={{ transform: `scale(${zoom})`, transformOrigin: 'top left' }}>
+            {tables.map((t) => (
+              <TableCard key={t.id} table={t} guestsById={guestsById} showTitles={showTitles}
+                onDropOnSeat={onDropOnSeat} onDragStartSeat={onDragStartSeat}
+                onDropOnTable={onDropOnTable} onDragStartTable={onDragStartTable}
+                onSeatContextMenu={handleGuestContextMenu} onExportImage={handleExportTableImage}
+                onDeleteTable={handleDeleteTable} onRename={handleRenameTable} />
+            ))}
+          </div>
+        </div>
+
+        <div className="zoom-control">
+          <button onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.1).toFixed(2)))}>－</button>
+          <span>{Math.round(zoom * 100)}%</span>
+          <button onClick={() => setZoom((z) => Math.min(1.5, +(z + 0.1).toFixed(2)))}>＋</button>
+        </div>
+      </main>
+
+      {detailGuest && (
+        <GuestDetailModal guest={detailGuest} seatLabel={seatLabelFor(detailGuest.id)}
+          onClose={() => setDetailGuestId(null)} onSave={handleSaveGuest}
+          onDelete={handleDeleteGuest} onUnseat={handleUnseat} onToggleAttending={toggleAttending} />
+      )}
+
+      {addGuestOpen && <AddGuestModal onClose={() => setAddGuestOpen(false)} onAdd={handleAddGuest} />}
+
+      {addTableOpen && (
+        <AddTableModal defaultName={`主桌${tables.length + 1}`} onClose={() => setAddTableOpen(false)} onAdd={handleAddTable} />
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+window.__seatingAppMounted = true;
+</script>
+</body>
+</html>
