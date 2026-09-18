@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>尾牙主桌排位系統</title>
+<title>貴賓排位系統</title>
 
 <script>
   function cdnFail(name) {
@@ -246,7 +246,7 @@ function parseGuestExcel(file) {
   });
 }
 
-function exportSeatingToExcel(guests, tables, filename = '尾牙排位表.xlsx') {
+function exportSeatingToExcel(guests, tables, filename = '貴賓排位表.xlsx') {
   const guestMap = new Map(guests.map((g) => [g.id, g]));
   const seatedRows = [];
   tables.forEach((t) => {
@@ -411,7 +411,7 @@ function Sidebar({
   return (
     <aside className="sidebar" onDragOver={(e) => e.preventDefault()} onDrop={onDropToPool}>
       <div className="sidebar-header">
-        <h1>尾牙主桌排位系統</h1>
+        <h1>貴賓排位系統</h1>
         <div className="toolbar-buttons">
           <button onClick={onImportClick}>📥 匯入 Excel</button>
           <button onClick={onAddGuestClick}>➕ 新增貴賓</button>
@@ -841,7 +841,7 @@ function App() {
     const blob = new Blob([data], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = '尾牙排位專案.json';
+    a.href = url; a.download = '貴賓排位專案.json';
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
